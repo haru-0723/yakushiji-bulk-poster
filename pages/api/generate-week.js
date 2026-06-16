@@ -19,9 +19,10 @@ export default async function handler(req, res) {
   for (const character of CHARACTERS) {
     const webhook = resolveWebhookForCharacter(character);
     try {
-      const weekStartISO = await generateAndStoreWeek(character, target);
+      const { weekStartISO, lengthMode } = await generateAndStoreWeek(character, target);
+      const modeLabel = lengthMode === 'free140' ? '140字モード' : '通常モード';
       await sendDiscordMessage(
-        `✅ ${character.displayName} ${weekStartISO} の週の投稿を14本生成しました。`,
+        `✅ ${character.displayName} ${weekStartISO} の週の投稿を14本生成しました(${modeLabel})。`,
         webhook
       );
       results.push({ character: character.slug, ok: true, weekStart: weekStartISO });

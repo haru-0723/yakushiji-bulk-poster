@@ -17,7 +17,15 @@ export async function getServerSideProps({ req, query }) {
 
   if (!authed) {
     return {
-      props: { authed: false, posts: [], weekStart: null, todayKey: null, characters: [], activeSlug: null },
+      props: {
+        authed: false,
+        posts: [],
+        weekStart: null,
+        todayKey: null,
+        characters: [],
+        activeSlug: null,
+        weekLengthMode: 'standard',
+      },
     };
   }
 
@@ -35,14 +43,24 @@ export async function getServerSideProps({ req, query }) {
     .eq('character_id', active.slug)
     .eq('week_start', weekStart);
 
+  const posts = data || [];
+  // この週がどちらのモードで生成されたか(未生成ならキャラクターのデフォルト)
+  const weekLengthMode = posts[0]?.length_mode || active.defaultLengthMode || 'standard';
+
   return {
     props: {
       authed: true,
-      posts: data || [],
+      posts,
       weekStart,
       todayKey,
-      characters: CHARACTERS.map((c) => ({ slug: c.slug, displayName: c.displayName, emoji: c.emoji })),
+      characters: CHARACTERS.map((c) => ({
+        slug: c.slug,
+        displayName: c.displayName,
+        emoji: c.emoji,
+        defaultLengthMode: c.defaultLengthMode || 'standard',
+      })),
       activeSlug: active.slug,
+      weekLengthMode,
     },
   };
 }
@@ -90,9 +108,24 @@ function LoginForm() {
   );
 }
 
-export default function Home({ authed, posts, weekStart, todayKey, characters, activeSlug }) {
+function CharCount({ content, lengthMode }) {
+  const count = content ? content.length : 0;
+  const overLimit = lengthMode === 'free140' && count > 140;
+  return <span className={`char-count ${overLimit ? 'char-count-over' : ''}`}>{count}字</span>;
+}
+
+export default function Home({
+  authed,
+  posts,
+  weekStart,
+  todayKey,
+  characters,
+  activeSlug,
+  weekLengthMode,
+}) {
   const [regenerating, setRegenerating] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [selectedLengthMode, setSelectedLengthMode] = useState(weekLengthMode);
 
   if (!authed) {
     return <LoginForm />;
@@ -105,7 +138,7 @@ export default function Home({ authed, posts, weekStart, todayKey, characters, a
     const res = await fetch('/api/regenerate', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ character: activeSlug }),
+      body: JSON.stringify({ character: activeSlug, lengthMode: selectedLengthMode }),
     });
     setRegenerating(false);
     if (res.ok) {
@@ -135,12 +168,30 @@ export default function Home({ authed, posts, weekStart, todayKey, characters, a
           <span className="emblem">{activeCharacter ? activeCharacter.emoji : '💊'}</span>
           <div>
             <h1>{activeCharacter ? activeCharacter.displayName : ''} 投稿ダッシュボード</h1>
-            <p className="week-range">{weekStart} の週</p>
+            <p className="week-range">
+              {weekStart} の週・{weekLengthMode === 'free140' ? '140字モード' : '通常モード'}で生成済み
+            </p>
           </div>
         </div>
-        <div>
+        <div className="topbar-actions">
+          <div className="mode-toggle">
+            <button
+              className={`mode-btn ${selectedLengthMode === 'standard' ? 'mode-btn-active' : ''}`}
+              onClick={() => setSelectedLengthMode('standard')}
+              type="button"
+            >
+              通常
+            </button>
+            <button
+              className={`mode-btn ${selectedLengthMode === 'free140' ? 'mode-btn-active' : ''}`}
+              onClick={() => setSelectedLengthMode('free140')}
+              type="button"
+            >
+              140字以内
+            </button>
+          </div>
           <button className="regen-btn" onClick={handleRegenerate} disabled={regenerating}>
-            {regenerating ? '生成中...' : '今週分を再生成'}
+            {regenerating ? '生成中...' : '選んだモードで再生成'}
           </button>
           <a className="logout-link" href="/api/logout">
             ログアウト
@@ -181,7 +232,10 @@ export default function Home({ authed, posts, weekStart, todayKey, characters, a
             </h2>
 
             <div className="post-block">
-              <div className="post-label">朝投稿</div>
+              <div className="post-label-row">
+                <span className="post-label">朝投稿</span>
+                {d.asa && <CharCount content={d.asa.content} lengthMode={weekLengthMode} />}
+              </div>
               <p className="post-content">{d.asa ? d.asa.content : '未生成'}</p>
               {d.asa && (
                 <button onClick={() => handleCopy(d.asa.id, d.asa.content)}>
@@ -191,7 +245,10 @@ export default function Home({ authed, posts, weekStart, todayKey, characters, a
             </div>
 
             <div className="post-block">
-              <div className="post-label">通常投稿</div>
+              <div className="post-label-row">
+                <span className="post-label">通常投稿</span>
+                {d.tsujou && <CharCount content={d.tsujou.content} lengthMode={weekLengthMode} />}
+              </div>
               <p className="post-content">{d.tsujou ? d.tsujou.content : '未生成'}</p>
               {d.tsujou && (
                 <button onClick={() => handleCopy(d.tsujou.id, d.tsujou.content)}>

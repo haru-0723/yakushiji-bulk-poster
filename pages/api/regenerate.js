@@ -19,15 +19,25 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `不明なキャラクターです: ${slug}` });
   }
 
+  // 'standard' | 'free140' が来たらそれを優先。指定がなければキャラクターのデフォルトを使う
+  const requestedMode = req.body && req.body.lengthMode;
+  const lengthModeOverride =
+    requestedMode === 'standard' || requestedMode === 'free140' ? requestedMode : undefined;
+
   const webhook = resolveWebhookForCharacter(character);
 
   try {
-    const weekStartISO = await generateAndStoreWeek(character, mondayOfWeek(nowInJst()));
+    const { weekStartISO, lengthMode } = await generateAndStoreWeek(
+      character,
+      mondayOfWeek(nowInJst()),
+      lengthModeOverride
+    );
+    const modeLabel = lengthMode === 'free140' ? '140字モード' : '通常モード';
     await sendDiscordMessage(
-      `✅ ${character.displayName} ${weekStartISO} の週の投稿を手動で再生成しました(14本)。`,
+      `✅ ${character.displayName} ${weekStartISO} の週の投稿を手動で再生成しました(14本・${modeLabel})。`,
       webhook
     );
-    return res.status(200).json({ ok: true, weekStart: weekStartISO });
+    return res.status(200).json({ ok: true, weekStart: weekStartISO, lengthMode });
   } catch (err) {
     console.error(err);
     await sendDiscordMessage(

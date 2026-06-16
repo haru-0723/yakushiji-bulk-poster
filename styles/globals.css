@@ -146,6 +146,34 @@ input:focus-visible {
   margin: 4px 0 0;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.mode-btn {
+  background: var(--surface);
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 9px 14px;
+}
+
+.mode-btn-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .regen-btn {
   background: transparent;
   border: 1px solid var(--accent);
@@ -170,7 +198,7 @@ input:focus-visible {
   font-size: 12px;
   color: var(--text-muted);
   text-decoration: none;
-  margin-left: 12px;
+  margin-left: 4px;
 }
 
 /* ---------- キャラクター切り替えタブ ---------- */
@@ -272,6 +300,23 @@ input:focus-visible {
   text-transform: uppercase;
 }
 
+.post-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.char-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.char-count-over {
+  color: var(--capsule);
+  font-weight: 700;
+}
+
 .post-content {
   font-size: 14px;
   line-height: 1.7;
@@ -319,7 +364,19 @@ input:focus-visible {
     align-items: flex-start;
   }
 
+  .topbar-actions {
+    width: 100%;
+  }
+
   .regen-btn {
     width: 100%;
+  }
+
+  .mode-toggle {
+    width: 100%;
+  }
+
+  .mode-btn {
+    flex: 1;
   }
 }
