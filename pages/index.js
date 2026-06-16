@@ -1,0 +1,171 @@
+import { useState } from 'react';
+import { getSupabaseAdmin } from '../lib/supabase';
+import {
+  DAY_KEYS,
+  DAY_LABELS_JA,
+  mondayOfWeek,
+  nowInJst,
+  formatDateJst,
+  isoWeekday,
+  dayKeyFromIsoWeekday,
+} from '../lib/jst';
+
+export async function getServerSideProps({ req }) {
+  const cookie = req.cookies ? req.cookies.dashboard_auth : null;
+  const authed = Boolean(cookie) && cookie === process.env.DASHBOARD_PASSWORD;
+
+  if (!authed) {
+    return { props: { authed: false, posts: [], weekStart: null, todayKey: null } };
+  }
+
+  const today = nowInJst();
+  const weekStart = formatDateJst(mondayOfWeek(today));
+  const todayKey = dayKeyFromIsoWeekday(isoWeekday(today));
+
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase
+    .from('bulk_posts')
+    .select('*')
+    .eq('week_start', weekStart);
+
+  return { props: { authed: true, posts: data || [], weekStart, todayKey } };
+}
+
+function LoginForm() {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    setLoading(false);
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      setError('パスワードが違います');
+    }
+  }
+
+  return (
+    <div className="login-wrap">
+      <form className="login-card" onSubmit={handleSubmit}>
+        <div className="login-emblem">💊</div>
+        <h1>薬師寺バルク 投稿ダッシュボード</h1>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="パスワード"
+          autoFocus
+        />
+        <button type="submit" disabled={loading}>
+          {loading ? '確認中...' : '入室'}
+        </button>
+        {error && <p className="login-error">{error}</p>}
+      </form>
+    </div>
+  );
+}
+
+export default function Home({ authed, posts, weekStart, todayKey }) {
+  const [regenerating, setRegenerating] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
+
+  if (!authed) {
+    return <LoginForm />;
+  }
+
+  async function handleRegenerate() {
+    setRegenerating(true);
+    const res = await fetch('/api/regenerate', { method: 'POST' });
+    setRegenerating(false);
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      alert('再生成に失敗しました。時間を置いて再度試してください。');
+    }
+  }
+
+  function handleCopy(id, content) {
+    navigator.clipboard.writeText(content);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  }
+
+  const grouped = DAY_KEYS.map((key) => ({
+    key,
+    label: DAY_LABELS_JA[key],
+    asa: posts.find((p) => p.day_of_week === key && p.post_type === 'asa'),
+    tsujou: posts.find((p) => p.day_of_week === key && p.post_type === 'tsujou'),
+  }));
+
+  return (
+    <div className="page">
+      <header className="topbar">
+        <div className="title-group">
+          <span className="emblem">💊</span>
+          <div>
+            <h1>薬師寺バルク 投稿ダッシュボード</h1>
+            <p className="week-range">{weekStart} の週</p>
+          </div>
+        </div>
+        <div>
+          <button className="regen-btn" onClick={handleRegenerate} disabled={regenerating}>
+            {regenerating ? '生成中...' : '今週分を再生成'}
+          </button>
+          <a className="logout-link" href="/api/logout">
+            ログアウト
+          </a>
+        </div>
+      </header>
+
+      <div className="pillbox">
+        {grouped.map((d) => (
+          <div key={d.key} className={`pill ${d.key === todayKey ? 'pill-today' : ''}`}>
+            {d.label}
+          </div>
+        ))}
+      </div>
+
+      <main className="grid">
+        {grouped.map((d) => (
+          <section
+            key={d.key}
+            className={`day-card ${d.key === todayKey ? 'day-card-today' : ''}`}
+          >
+            <h2>
+              {d.label}曜日{d.key === todayKey ? '・今日' : ''}
+            </h2>
+
+            <div className="post-block">
+              <div className="post-label">朝投稿</div>
+              <p className="post-content">{d.asa ? d.asa.content : '未生成'}</p>
+              {d.asa && (
+                <button onClick={() => handleCopy(d.asa.id, d.asa.content)}>
+                  {copiedId === d.asa.id ? 'コピーしました' : 'コピー'}
+                </button>
+              )}
+            </div>
+
+            <div className="post-block">
+              <div className="post-label">通常投稿</div>
+              <p className="post-content">{d.tsujou ? d.tsujou.content : '未生成'}</p>
+              {d.tsujou && (
+                <button onClick={() => handleCopy(d.tsujou.id, d.tsujou.content)}>
+                  {copiedId === d.tsujou.id ? 'コピーしました' : 'コピー'}
+                </button>
+              )}
+            </div>
+          </section>
+        ))}
+      </main>
+    </div>
+  );
+}
