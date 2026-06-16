@@ -15,6 +15,17 @@ export async function getServerSideProps({ req, query }) {
   const cookie = req.cookies ? req.cookies.dashboard_auth : null;
   const authed = Boolean(cookie) && cookie === process.env.DASHBOARD_PASSWORD;
 
+  const allCharacters = CHARACTERS.map((c) => ({
+    slug: c.slug,
+    displayName: c.displayName,
+    emoji: c.emoji,
+    defaultLengthMode: c.defaultLengthMode || 'standard',
+  }));
+
+  const requestedSlug = typeof query.c === 'string' ? query.c : null;
+  const cookieCharacter = req.cookies ? req.cookies.dashboard_character : null;
+  const active = getCharacterBySlug(requestedSlug) || getCharacterBySlug(cookieCharacter) || CHARACTERS[0];
+
   if (!authed) {
     return {
       props: {
@@ -22,15 +33,12 @@ export async function getServerSideProps({ req, query }) {
         posts: [],
         weekStart: null,
         todayKey: null,
-        characters: [],
-        activeSlug: null,
+        characters: allCharacters,
+        activeSlug: active.slug,
         weekLengthMode: 'standard',
       },
     };
   }
-
-  const requestedSlug = typeof query.c === 'string' ? query.c : null;
-  const active = getCharacterBySlug(requestedSlug) || CHARACTERS[0];
 
   const today = nowInJst();
   const weekStart = formatDateJst(mondayOfWeek(today));
@@ -53,22 +61,20 @@ export async function getServerSideProps({ req, query }) {
       posts,
       weekStart,
       todayKey,
-      characters: CHARACTERS.map((c) => ({
-        slug: c.slug,
-        displayName: c.displayName,
-        emoji: c.emoji,
-        defaultLengthMode: c.defaultLengthMode || 'standard',
-      })),
+      characters: allCharacters,
       activeSlug: active.slug,
       weekLengthMode,
     },
   };
 }
 
-function LoginForm() {
+function LoginForm({ characters, initialSlug }) {
+  const [selectedSlug, setSelectedSlug] = useState(initialSlug || characters[0]?.slug || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const activeChar = characters.find((c) => c.slug === selectedSlug) || characters[0];
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -77,11 +83,12 @@ function LoginForm() {
     const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, character: selectedSlug }),
     });
     setLoading(false);
     if (res.ok) {
-      window.location.reload();
+      const { character } = await res.json();
+      window.location.href = `/?c=${character}`;
     } else {
       setError('パスワードが違います');
     }
@@ -90,8 +97,22 @@ function LoginForm() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={handleSubmit}>
-        <div className="login-emblem">💊</div>
+        <div className="login-emblem">{activeChar ? activeChar.emoji : '💊'}</div>
         <h1>投稿ダッシュボード</h1>
+        {characters.length > 1 && (
+          <div className="login-char-switcher">
+            {characters.map((c) => (
+              <button
+                key={c.slug}
+                type="button"
+                className={`char-tab ${c.slug === selectedSlug ? 'char-tab-active' : ''}`}
+                onClick={() => { setSelectedSlug(c.slug); setError(''); setPassword(''); }}
+              >
+                {c.emoji} {c.displayName}
+              </button>
+            ))}
+          </div>
+        )}
         <input
           type="password"
           value={password}
@@ -128,7 +149,7 @@ export default function Home({
   const [selectedLengthMode, setSelectedLengthMode] = useState(weekLengthMode);
 
   if (!authed) {
-    return <LoginForm />;
+    return <LoginForm characters={characters} initialSlug={activeSlug} />;
   }
 
   const activeCharacter = characters.find((c) => c.slug === activeSlug) || characters[0];

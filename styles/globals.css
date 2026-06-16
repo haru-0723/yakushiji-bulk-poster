@@ -101,6 +101,13 @@ input:focus-visible {
   margin: 0;
 }
 
+.login-char-switcher {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 /* ---------- ダッシュボード ---------- */
 
 .page {
