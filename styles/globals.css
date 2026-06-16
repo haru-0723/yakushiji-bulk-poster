@@ -173,6 +173,31 @@ input:focus-visible {
   margin-left: 12px;
 }
 
+/* ---------- キャラクター切り替えタブ ---------- */
+
+.char-switcher {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.char-tab {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 14px;
+  background: var(--surface);
+}
+
+.char-tab-active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
 /* ---------- 週間ピルボックス（サインチャー要素） ---------- */
 
 .pillbox {

@@ -9,14 +9,20 @@ import {
   isoWeekday,
   dayKeyFromIsoWeekday,
 } from '../lib/jst';
+import { CHARACTERS, getCharacterBySlug } from '../lib/characters';
 
-export async function getServerSideProps({ req }) {
+export async function getServerSideProps({ req, query }) {
   const cookie = req.cookies ? req.cookies.dashboard_auth : null;
   const authed = Boolean(cookie) && cookie === process.env.DASHBOARD_PASSWORD;
 
   if (!authed) {
-    return { props: { authed: false, posts: [], weekStart: null, todayKey: null } };
+    return {
+      props: { authed: false, posts: [], weekStart: null, todayKey: null, characters: [], activeSlug: null },
+    };
   }
+
+  const requestedSlug = typeof query.c === 'string' ? query.c : null;
+  const active = getCharacterBySlug(requestedSlug) || CHARACTERS[0];
 
   const today = nowInJst();
   const weekStart = formatDateJst(mondayOfWeek(today));
@@ -26,9 +32,19 @@ export async function getServerSideProps({ req }) {
   const { data } = await supabase
     .from('bulk_posts')
     .select('*')
+    .eq('character_id', active.slug)
     .eq('week_start', weekStart);
 
-  return { props: { authed: true, posts: data || [], weekStart, todayKey } };
+  return {
+    props: {
+      authed: true,
+      posts: data || [],
+      weekStart,
+      todayKey,
+      characters: CHARACTERS.map((c) => ({ slug: c.slug, displayName: c.displayName, emoji: c.emoji })),
+      activeSlug: active.slug,
+    },
+  };
 }
 
 function LoginForm() {
@@ -57,7 +73,7 @@ function LoginForm() {
     <div className="login-wrap">
       <form className="login-card" onSubmit={handleSubmit}>
         <div className="login-emblem">💊</div>
-        <h1>薬師寺バルク 投稿ダッシュボード</h1>
+        <h1>投稿ダッシュボード</h1>
         <input
           type="password"
           value={password}
@@ -74,7 +90,7 @@ function LoginForm() {
   );
 }
 
-export default function Home({ authed, posts, weekStart, todayKey }) {
+export default function Home({ authed, posts, weekStart, todayKey, characters, activeSlug }) {
   const [regenerating, setRegenerating] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
 
@@ -82,9 +98,15 @@ export default function Home({ authed, posts, weekStart, todayKey }) {
     return <LoginForm />;
   }
 
+  const activeCharacter = characters.find((c) => c.slug === activeSlug) || characters[0];
+
   async function handleRegenerate() {
     setRegenerating(true);
-    const res = await fetch('/api/regenerate', { method: 'POST' });
+    const res = await fetch('/api/regenerate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ character: activeSlug }),
+    });
     setRegenerating(false);
     if (res.ok) {
       window.location.reload();
@@ -110,9 +132,9 @@ export default function Home({ authed, posts, weekStart, todayKey }) {
     <div className="page">
       <header className="topbar">
         <div className="title-group">
-          <span className="emblem">💊</span>
+          <span className="emblem">{activeCharacter ? activeCharacter.emoji : '💊'}</span>
           <div>
-            <h1>薬師寺バルク 投稿ダッシュボード</h1>
+            <h1>{activeCharacter ? activeCharacter.displayName : ''} 投稿ダッシュボード</h1>
             <p className="week-range">{weekStart} の週</p>
           </div>
         </div>
@@ -125,6 +147,20 @@ export default function Home({ authed, posts, weekStart, todayKey }) {
           </a>
         </div>
       </header>
+
+      {characters.length > 1 && (
+        <nav className="char-switcher">
+          {characters.map((c) => (
+            <a
+              key={c.slug}
+              href={`/?c=${c.slug}`}
+              className={`char-tab ${c.slug === activeSlug ? 'char-tab-active' : ''}`}
+            >
+              {c.emoji} {c.displayName}
+            </a>
+          ))}
+        </nav>
+      )}
 
       <div className="pillbox">
         {grouped.map((d) => (
