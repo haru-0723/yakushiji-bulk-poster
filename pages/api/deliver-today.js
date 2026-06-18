@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '../../lib/supabase';
 import { sendDiscordMessage, resolveWebhookForCharacter } from '../../lib/discord';
+import { postTweet } from '../../lib/twitter';
 import {
   nowInJst,
   isoWeekday,
@@ -54,6 +55,21 @@ export default async function handler(req, res) {
 
       const message = `📣 ${dateLabel}（${DAY_LABELS_JA[dayKey]}）の${character.displayName}投稿\n\n【朝投稿】\n${asa.content}\n\n【通常投稿】\n${tsujou.content}`;
       await sendDiscordMessage(message, webhook);
+
+      // X（Twitter）に投稿
+      const xEnabled = process.env.X_API_KEY && process.env.X_ACCESS_TOKEN;
+      if (xEnabled) {
+        try {
+          await postTweet(asa.content);
+          await postTweet(tsujou.content);
+        } catch (xErr) {
+          console.error(`[${character.slug}] X投稿エラー:`, xErr);
+          await sendDiscordMessage(
+            `⚠️ ${character.displayName} のX投稿に失敗しました\n${xErr.message}`,
+            webhook
+          );
+        }
+      }
 
       await supabase
         .from('bulk_posts')
