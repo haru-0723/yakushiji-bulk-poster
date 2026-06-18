@@ -5,8 +5,12 @@
       "schedule": "0 12 * * 0"
     },
     {
-      "path": "/api/deliver-today",
-      "schedule": "30 21 * * *"
+      "path": "/api/deliver-today?type=asa",
+      "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/deliver-today?type=tsujou",
+      "schedule": "0 10 * * *"
     }
   ]
 }
